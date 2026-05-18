@@ -1,0 +1,282 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../theme.dart';
+import 'today.dart';
+import 'meds.dart';
+import 'journey.dart';
+import 'insights.dart';
+import 'profile.dart';
+
+class MainShell extends StatefulWidget {
+  const MainShell({super.key});
+
+  @override
+  State<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends State<MainShell> {
+  int _index = 0;
+
+  static const _screens = [
+    TodayScreen(),
+    MedsScreen(),
+    JourneyScreen(),
+    InsightsScreen(),
+    ProfileScreen(),
+  ];
+
+  static const _items = [
+    _NavData(Icons.home_outlined, Icons.home_rounded, 'Today'),
+    _NavData(Icons.medication_outlined, Icons.medication_rounded, 'Meds'),
+    _NavData(Icons.history_outlined, Icons.history_rounded, 'Journey'),
+    _NavData(Icons.bar_chart_outlined, Icons.bar_chart_rounded, 'Insights'),
+    _NavData(Icons.person_outline_rounded, Icons.person_rounded, 'Profile'),
+  ];
+
+  void _onTap(int i) {
+    HapticFeedback.lightImpact();
+    setState(() => _index = i);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Scaffold(
+      backgroundColor: c.bg,
+      extendBody: true,
+      body: IndexedStack(index: _index, children: _screens),
+      bottomNavigationBar: _GlassNav(
+        index: _index,
+        items: _items,
+        colors: c,
+        isDark: isDark,
+        onTap: _onTap,
+      ),
+    );
+  }
+}
+
+// ── Data class ────────────────────────────────────────────────────────────────
+class _NavData {
+  final IconData unselected;
+  final IconData selected;
+  final String label;
+  const _NavData(this.unselected, this.selected, this.label);
+}
+
+// ── Glass Nav Bar ─────────────────────────────────────────────────────────────
+class _GlassNav extends StatelessWidget {
+  final int index;
+  final List<_NavData> items;
+  final AppColors colors;
+  final bool isDark;
+  final ValueChanged<int> onTap;
+
+  const _GlassNav({
+    required this.index,
+    required this.items,
+    required this.colors,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        child: Container(
+          height: 70,
+          decoration: BoxDecoration(
+            color: isDark
+                ? colors.card.withValues(alpha: 0.92)
+                : Colors.white.withValues(alpha: 0.94),
+            borderRadius: BorderRadius.circular(32),
+            border: Border.all(
+              color: isDark
+                  ? colors.divider.withValues(alpha: 0.6)
+                  : Colors.white.withValues(alpha: 0.8),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: colors.primary.withValues(alpha: isDark ? 0.15 : 0.08),
+                blurRadius: 32,
+                offset: const Offset(0, 8),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              // ── Sliding background indicator
+              AnimatedAlign(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutCubic,
+                alignment: Alignment(
+                  -1 + (2 / (items.length - 1)) * index,
+                  0,
+                ),
+                child: FractionallySizedBox(
+                  widthFactor: 1 / items.length,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 10),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: colors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // ── Nav items
+              Row(
+                children: List.generate(items.length, (i) {
+                  return Expanded(
+                    child: _GlassNavItem(
+                      data: items[i],
+                      selected: index == i,
+                      colors: colors,
+                      onTap: () => onTap(i),
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Individual Nav Item ───────────────────────────────────────────────────────
+class _GlassNavItem extends StatefulWidget {
+  final _NavData data;
+  final bool selected;
+  final AppColors colors;
+  final VoidCallback onTap;
+
+  const _GlassNavItem({
+    required this.data,
+    required this.selected,
+    required this.colors,
+    required this.onTap,
+  });
+
+  @override
+  State<_GlassNavItem> createState() => _GlassNavItemState();
+}
+
+class _GlassNavItemState extends State<_GlassNavItem>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _iconShift;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 280));
+    _iconShift =
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack);
+
+    if (widget.selected) _ctrl.value = 1.0;
+  }
+
+  @override
+  void didUpdateWidget(_GlassNavItem old) {
+    super.didUpdateWidget(old);
+    if (widget.selected && !old.selected) {
+      _ctrl.forward();
+    } else if (!widget.selected && old.selected) {
+      _ctrl.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedBuilder(
+        animation: _ctrl,
+        builder: (_, __) {
+          final t = _ctrl.value;
+          return SizedBox(
+            height: 70,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // ── Top dot indicator
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutCubic,
+                  width: widget.selected ? 20 : 4,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: widget.selected
+                        ? widget.colors.primary
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 6),
+
+                // ── Icon with scale bounce
+                Transform.scale(
+                  scale: 1.0 + (_iconShift.value * 0.15),
+                  child: Icon(
+                    widget.selected
+                        ? widget.data.selected
+                        : widget.data.unselected,
+                    size: 22,
+                    color: widget.selected
+                        ? widget.colors.primary
+                        : widget.colors.textLight,
+                  ),
+                ),
+                const SizedBox(height: 4),
+
+                // ── Label fades in when selected
+                SizedBox(
+                  height: 13,
+                  child: Opacity(
+                    opacity: t,
+                    child: Transform.translate(
+                      offset: Offset(0, (1 - t) * 6),
+                      child: Text(
+                        widget.data.label,
+                        style: TextStyle(
+                          fontFamily: 'Arial',
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: widget.colors.primary,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
