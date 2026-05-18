@@ -1,0 +1,406 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../theme.dart';
+import '../models.dart';
+import '../provider.dart';
+import '../widgets.dart';
+
+class InsightsScreen extends StatefulWidget {
+  const InsightsScreen({super.key});
+
+  @override
+  State<InsightsScreen> createState() => _InsightsScreenState();
+}
+
+class _InsightsScreenState extends State<InsightsScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1000));
+    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
+    Future.delayed(
+        const Duration(milliseconds: 300), () => _ctrl.forward());
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<AppProvider>();
+    final c = context.colors;
+
+    return SafeArea(
+      bottom: false,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.only(bottom: 90),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const RestoraAppBar(
+                subtitle: 'PATTERNS & PRACTICE — ANALYTICS'),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 28, 20, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Patterns &\nPractice',
+                      style: TextStyle(
+                          fontFamily: 'Georgia',
+                          fontStyle: FontStyle.italic,
+                          fontSize: 40,
+                          color: c.textDark,
+                          height: 1.1)),
+                  const SizedBox(height: 10),
+                  Text(
+                      'The rhythms of your restoration, revealed by quiet attention.',
+                      style: TextStyle(
+                          fontFamily: 'Arial',
+                          fontSize: 14,
+                          color: c.textMid,
+                          height: 1.5)),
+                  const SizedBox(height: 24),
+
+                  if (provider.medications.isEmpty)
+                    const EmptyState(
+                      icon: Icons.bar_chart_outlined,
+                      title: 'No data yet',
+                      subtitle:
+                          'Add medications and track doses to see your patterns.',
+                    )
+                  else ...[
+                    _WeeklyBarChart(
+                        anim: _anim, provider: provider),
+                    const SizedBox(height: 16),
+                    _TimeOfDayCard(
+                        anim: _anim, provider: provider),
+                    const SizedBox(height: 16),
+                    _SummaryCard(provider: provider),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Weekly Bar Chart ──────────────────────────────────────────────────────────
+class _WeeklyBarChart extends StatelessWidget {
+  final Animation<double> anim;
+  final AppProvider provider;
+
+  const _WeeklyBarChart({required this.anim, required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final data = provider.weeklyAdherence;
+    final today = DateTime.now().weekday - 1;
+    const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+
+    // Week-over-week comparison (simple: count days > 0)
+    final activeDays = data.where((v) => v > 0).length;
+
+    return RestoraCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('THIS WEEK',
+                  style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 10,
+                      letterSpacing: 1.5,
+                      color: c.textLight)),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                    color: c.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20)),
+                child: Text('$activeDays / 7 DAYS',
+                    style: TextStyle(
+                        fontFamily: 'Arial',
+                        fontSize: 10,
+                        letterSpacing: 0.5,
+                        fontWeight: FontWeight.w600,
+                        color: c.primary)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text('Adherence by Day',
+              style: TextStyle(
+                  fontFamily: 'Georgia',
+                  fontStyle: FontStyle.italic,
+                  fontSize: 20,
+                  color: c.textDark)),
+          const SizedBox(height: 20),
+          AnimatedBuilder(
+            animation: anim,
+            builder: (_, __) => SizedBox(
+              height: 120,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(7, (i) {
+                  final v = data[i];
+                  final isToday = i == today;
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      // Percentage label above bar
+                      if (v > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            '${(v * 100).round()}%',
+                            style: TextStyle(
+                                fontFamily: 'Arial',
+                                fontSize: 8,
+                                color: isToday
+                                    ? c.primary
+                                    : c.textLight),
+                          ),
+                        ),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.bottomCenter,
+                          child: AnimatedContainer(
+                            duration:
+                                Duration(milliseconds: 500 + i * 60),
+                            width: 32,
+                            height: v == 0
+                                ? 4
+                                : 90 * v * anim.value,
+                            decoration: BoxDecoration(
+                              color: isToday
+                                  ? c.primary
+                                  : v == 0
+                                      ? c.progressBg
+                                      : c.primary.withValues(alpha: 0.55),
+                              borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(6)),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(days[i],
+                          style: TextStyle(
+                              fontFamily: 'Arial',
+                              fontSize: 9,
+                              fontWeight: isToday
+                                  ? FontWeight.w700
+                                  : FontWeight.normal,
+                              color: isToday
+                                  ? c.primary
+                                  : c.textLight)),
+                    ],
+                  );
+                }),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Time of Day Card ──────────────────────────────────────────────────────────
+class _TimeOfDayCard extends StatelessWidget {
+  final Animation<double> anim;
+  final AppProvider provider;
+
+  const _TimeOfDayCard({required this.anim, required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final byPeriod = provider.adherenceByPeriod;
+
+    return RestoraCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('TIME OF DAY',
+              style: TextStyle(
+                  fontFamily: 'Arial',
+                  fontSize: 10,
+                  letterSpacing: 1.5,
+                  color: c.textLight)),
+          const SizedBox(height: 6),
+          Text('When you thrive',
+              style: TextStyle(
+                  fontFamily: 'Georgia',
+                  fontStyle: FontStyle.italic,
+                  fontSize: 20,
+                  color: c.textDark)),
+          const SizedBox(height: 6),
+          Text(_insight(byPeriod),
+              style: TextStyle(
+                  fontFamily: 'Arial',
+                  fontSize: 13,
+                  color: c.textMid,
+                  height: 1.5)),
+          const SizedBox(height: 20),
+          ...MedPeriod.values.map((period) {
+            final v = byPeriod[period] ?? 0;
+            if (provider.medsForPeriod(period).isEmpty) {
+              return const SizedBox.shrink();
+            }
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: _ProgressBar(
+                  label: period.label, value: v, anim: anim),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  String _insight(Map<MedPeriod, double> data) {
+    final entries =
+        data.entries.where((e) => e.value > 0).toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+    if (entries.isEmpty) {
+      return 'Track your doses to see when you perform best.';
+    }
+    final best = entries.first.key.label;
+    if (entries.length > 1 && entries.last.value < 0.8) {
+      return '$best is your strongest ritual. ${entries.last.key.label} needs some gentle attention.';
+    }
+    return '$best remains your strongest ritual. Keep up the consistency!';
+  }
+}
+
+class _ProgressBar extends StatelessWidget {
+  final String label;
+  final double value;
+  final Animation<double> anim;
+
+  const _ProgressBar(
+      {required this.label, required this.value, required this.anim});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    Color barColor;
+    if (value >= 0.9) {
+      barColor = c.primary;
+    } else if (value >= 0.7) {
+      barColor = c.primaryMuted;
+    } else {
+      barColor = c.errorColor.withValues(alpha: 0.7);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label,
+                style: TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 13,
+                    color: c.textDark)),
+            Text(value == 0 ? '—' : '${(value * 100).round()}%',
+                style: TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: c.textDark)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        AnimatedBuilder(
+          animation: anim,
+          builder: (_, __) => ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: value * anim.value,
+              backgroundColor: c.progressBg,
+              valueColor: AlwaysStoppedAnimation(barColor),
+              minHeight: 6,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Summary Card ──────────────────────────────────────────────────────────────
+class _SummaryCard extends StatelessWidget {
+  final AppProvider provider;
+  const _SummaryCard({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final stats = [
+      ('Total Medications', '${provider.medications.length}'),
+      ('30-Day Adherence',
+          '${(provider.adherenceRate * 100).round()}%'),
+      ('Current Streak', '${provider.currentStreak} days'),
+      ('Today\'s Progress',
+          '${provider.dosesToday} / ${provider.totalDosesToday}'),
+    ];
+
+    return RestoraCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Summary',
+              style: TextStyle(
+                  fontFamily: 'Georgia',
+                  fontStyle: FontStyle.italic,
+                  fontSize: 20,
+                  color: c.textDark)),
+          const SizedBox(height: 16),
+          ...List.generate(stats.length, (i) {
+            final (label, value) = stats[i];
+            return Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(label,
+                        style: TextStyle(
+                            fontFamily: 'Arial',
+                            fontSize: 13,
+                            color: c.textMid)),
+                    Text(value,
+                        style: TextStyle(
+                            fontFamily: 'Arial',
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: c.textDark)),
+                  ],
+                ),
+                if (i < stats.length - 1)
+                  Divider(color: c.divider, height: 20),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}

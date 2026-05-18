@@ -1,0 +1,215 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../theme.dart';
+import '../models.dart';
+import '../provider.dart';
+import '../widgets.dart';
+import 'add_med_sheet.dart';
+import 'med_detail.dart';
+
+class MedsScreen extends StatelessWidget {
+  const MedsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<AppProvider>();
+
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        children: [
+          const RestoraAppBar(subtitle: 'MY APOTHECARY — MEDICATION LIBRARY'),
+          Expanded(
+            child: provider.medications.isEmpty
+                ? EmptyState(
+                    icon: Icons.medication_outlined,
+                    title: 'Your apothecary is empty',
+                    subtitle:
+                        'Add your first medication to begin tracking.',
+                    actionLabel: '+ Add Medication',
+                    onAction: () => _showAdd(context),
+                  )
+                : ListView.separated(
+                    padding:
+                        const EdgeInsets.fromLTRB(20, 24, 20, 100),
+                    itemCount: provider.medications.length + 2,
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: 12),
+                    itemBuilder: (_, i) {
+                      if (i == 0) return _Header(provider: provider);
+                      if (i == provider.medications.length + 1) {
+                        return _AddButton(onTap: () => _showAdd(context));
+                      }
+                      return _MedCard(
+                          med: provider.medications[i - 1]);
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAdd(BuildContext context) async {
+    final med = await showModalBottomSheet<Medication>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const AddMedicationSheet(),
+    );
+    if (med != null && context.mounted) {
+      context.read<AppProvider>().addMedication(med);
+    }
+  }
+}
+
+class _Header extends StatelessWidget {
+  final AppProvider provider;
+  const _Header({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('My\nApothecary',
+            style: TextStyle(
+                fontFamily: 'Georgia',
+                fontStyle: FontStyle.italic,
+                fontSize: 40,
+                color: c.textDark,
+                height: 1.1)),
+        const SizedBox(height: 8),
+        Text('Manage your restorative regimen with intention.',
+            style: TextStyle(
+                fontFamily: 'Arial',
+                fontSize: 14,
+                color: c.textMid,
+                height: 1.5)),
+        const SizedBox(height: 20),
+        SectionHeader(
+            title: 'Active Medications',
+            trailing: '${provider.medications.length} items'),
+      ],
+    );
+  }
+}
+
+class _MedCard extends StatelessWidget {
+  final Medication med;
+  const _MedCard({required this.med});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return RestoraCard(
+      onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => MedDetailScreen(med: med))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                    color: c.surface,
+                    borderRadius: BorderRadius.circular(12)),
+                child: Icon(medIcon(med.iconName),
+                    color: c.primary, size: 20),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                    color: c.surface,
+                    borderRadius: BorderRadius.circular(20)),
+                child: Text('DAILY',
+                    style: TextStyle(
+                        fontFamily: 'Arial',
+                        fontSize: 10,
+                        letterSpacing: 1.5,
+                        fontWeight: FontWeight.w600,
+                        color: c.textMid)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text('${med.name} ${med.dosage}',
+              style: TextStyle(
+                  fontFamily: 'Georgia',
+                  fontStyle: FontStyle.italic,
+                  fontSize: 20,
+                  color: c.textDark)),
+          if (med.purpose.isNotEmpty)
+            Text(med.purpose,
+                style: TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 13,
+                    color: c.textMid)),
+          const SizedBox(height: 14),
+          Divider(color: c.divider, height: 1),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Icon(Icons.medication_outlined,
+                  color: c.textLight, size: 14),
+              const SizedBox(width: 6),
+              Text(med.detail,
+                  style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 12,
+                      color: c.textMid)),
+              const SizedBox(width: 20),
+              Icon(Icons.access_time_outlined,
+                  color: c.textLight, size: 14),
+              const SizedBox(width: 6),
+              Text(med.period.label,
+                  style: TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 12,
+                      color: c.textMid)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AddButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _AddButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        decoration: BoxDecoration(
+          border: Border.all(
+              color: c.primary.withValues(alpha: 0.3), width: 1.5),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add, color: c.primary, size: 18),
+            const SizedBox(width: 8),
+            Text('Add Medication',
+                style: TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: c.primary)),
+          ],
+        ),
+      ),
+    );
+  }
+}

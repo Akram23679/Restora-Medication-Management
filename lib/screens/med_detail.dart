@@ -1,0 +1,288 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../theme.dart';
+import '../models.dart';
+import '../provider.dart';
+import '../widgets.dart';
+import 'add_med_sheet.dart';
+
+class MedDetailScreen extends StatelessWidget {
+  final Medication med;
+  const MedDetailScreen({super.key, required this.med});
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<AppProvider>();
+    final c = context.colors;
+
+    // Get fresh med from provider in case it was updated
+    final current = provider.medications
+        .firstWhere((m) => m.id == med.id, orElse: () => med);
+    final taken = provider.isTakenToday(current.id);
+
+    return Scaffold(
+      backgroundColor: c.bg,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Top bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: Row(
+                  children: [
+                    _iconBtn(context,
+                        icon: Icons.arrow_back,
+                        onTap: () => Navigator.of(context).pop()),
+                    const Spacer(),
+                    _iconBtn(context,
+                        icon: Icons.edit_outlined,
+                        onTap: () => _edit(context, current)),
+                    const SizedBox(width: 10),
+                    _iconBtn(context,
+                        icon: Icons.delete_outline,
+                        color: c.errorColor.withValues(alpha: 0.1),
+                        iconColor: c.errorColor,
+                        onTap: () => _delete(context, provider)),
+                  ],
+                ),
+              ),
+
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Icon + Name
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                          color: c.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(20)),
+                      child: Icon(medIcon(current.iconName),
+                          color: c.primary, size: 32),
+                    ),
+                    const SizedBox(height: 16),
+                    Text('${current.name} ${current.dosage}',
+                        style: TextStyle(
+                            fontFamily: 'Georgia',
+                            fontStyle: FontStyle.italic,
+                            fontSize: 32,
+                            color: c.textDark,
+                            height: 1.1)),
+                    if (current.purpose.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(current.purpose,
+                          style: TextStyle(
+                              fontFamily: 'Arial',
+                              fontSize: 15,
+                              color: c.textMid)),
+                    ],
+                    const SizedBox(height: 28),
+
+                    // ── Details
+                    RestoraCard(
+                      child: Column(
+                        children: [
+                          _row(context, Icons.medication_outlined,
+                              'Dosage', current.detail),
+                          Divider(color: c.divider, height: 24),
+                          _row(context, Icons.access_time_outlined,
+                              'Time',
+                              '${current.time} · ${current.period.label}'),
+                          Divider(color: c.divider, height: 24),
+                          _row(context, Icons.repeat_outlined,
+                              'Frequency', 'Daily'),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ── Today status
+                    RestoraCard(
+                      color: taken
+                          ? c.primary.withValues(alpha: 0.8)
+                          : null,
+                      child: Row(
+                        children: [
+                          Icon(
+                            taken
+                                ? Icons.check_circle
+                                : Icons.radio_button_unchecked,
+                            color: taken ? c.primary : c.textLight,
+                            size: 26,
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  taken
+                                      ? 'Taken today'
+                                      : 'Not yet taken today',
+                                  style: TextStyle(
+                                      fontFamily: 'Arial',
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: taken
+                                          ? c.primary
+                                          : c.textDark),
+                                ),
+                                Text(
+                                  taken
+                                      ? 'Great work!'
+                                      : 'Due at ${current.time}',
+                                  style: TextStyle(
+                                      fontFamily: 'Arial',
+                                      fontSize: 12,
+                                      color: c.textMid),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (!taken)
+                            GestureDetector(
+                              onTap: () {
+                                context
+                                    .read<AppProvider>()
+                                    .markDoseTaken(current.id);
+                                Navigator.of(context).pop();
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 9),
+                                decoration: BoxDecoration(
+                                    color: c.primary,
+                                    borderRadius:
+                                        BorderRadius.circular(20)),
+                                child: const Text('Mark Taken',
+                                    style: TextStyle(
+                                        fontFamily: 'Arial',
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white)),
+                              ),
+                            )
+                          else
+                            GestureDetector(
+                              onTap: () {
+                                context
+                                    .read<AppProvider>()
+                                    .undoDose(current.id);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 9),
+                                decoration: BoxDecoration(
+                                    border: Border.all(
+                                        color: c.divider),
+                                    borderRadius:
+                                        BorderRadius.circular(20)),
+                                child: Text('Undo',
+                                    style: TextStyle(
+                                        fontFamily: 'Arial',
+                                        fontSize: 13,
+                                        color: c.textMid)),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _iconBtn(BuildContext ctx,
+      {required IconData icon,
+      required VoidCallback onTap,
+      Color? color,
+      Color? iconColor}) {
+    final c = ctx.colors;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+            color: color ?? c.card,
+            borderRadius: BorderRadius.circular(12)),
+        child: Icon(icon, color: iconColor ?? c.textDark, size: 20),
+      ),
+    );
+  }
+
+  Widget _row(BuildContext ctx, IconData icon, String label, String value) {
+    final c = ctx.colors;
+    return Row(
+      children: [
+        Icon(icon, color: c.textLight, size: 18),
+        const SizedBox(width: 12),
+        Text(label,
+            style: TextStyle(
+                fontFamily: 'Arial', fontSize: 13, color: c.textMid)),
+        const Spacer(),
+        Text(value,
+            style: TextStyle(
+                fontFamily: 'Arial',
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: c.textDark)),
+      ],
+    );
+  }
+
+  Future<void> _edit(BuildContext context, Medication current) async {
+    final updated = await showModalBottomSheet<Medication>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AddMedicationSheet(existing: current),
+    );
+    if (updated != null && context.mounted) {
+      context.read<AppProvider>().updateMedication(updated);
+      Navigator.of(context).pop();
+    }
+  }
+
+  void _delete(BuildContext context, AppProvider provider) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: context.colors.card,
+        title: Text('Delete Medication?',
+            style: TextStyle(
+                fontFamily: 'Georgia',
+                color: context.colors.textDark)),
+        content: Text('Remove ${med.name} from your apothecary?',
+            style: TextStyle(
+                fontFamily: 'Arial', color: context.colors.textMid)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Cancel',
+                style: TextStyle(color: context.colors.textMid)),
+          ),
+          TextButton(
+            onPressed: () {
+              provider.deleteMedication(med.id);
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pop();
+            },
+            child: Text('Delete',
+                style: TextStyle(color: context.colors.errorColor)),
+          ),
+        ],
+      ),
+    );
+  }
+}

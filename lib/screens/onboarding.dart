@@ -1,0 +1,378 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../theme.dart';
+import '../models.dart';
+import '../provider.dart';
+import '../widgets.dart';
+import 'add_med_sheet.dart';
+import 'shell.dart';
+
+class OnboardingScreen extends StatefulWidget {
+  const OnboardingScreen({super.key});
+
+  @override
+  State<OnboardingScreen> createState() => _OnboardingScreenState();
+}
+
+class _OnboardingScreenState extends State<OnboardingScreen> {
+  final _pageController = PageController();
+  int _page = 0;
+
+  final _nameCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _meds = <Medication>[];
+  bool _notificationsOn = true;
+
+  bool get _canNext {
+    if (_page == 0) return _nameCtrl.text.trim().isNotEmpty;
+    if (_page == 1) return _meds.isNotEmpty;
+    return true;
+  }
+
+  void _next() {
+    if (_page < 2) {
+      FocusScope.of(context).unfocus();
+      _pageController.nextPage(
+          duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
+      setState(() => _page++);
+    } else {
+      _finish();
+    }
+  }
+
+  Future<void> _finish() async {
+    final provider = context.read<AppProvider>();
+    final profile = UserProfile(
+      name: _nameCtrl.text.trim(),
+      email: _emailCtrl.text.trim(),
+      bloodType: '',
+      allergies: [],
+    );
+    await provider.completeOnboarding(profile, _meds);
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const MainShell()));
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Scaffold(
+      backgroundColor: c.bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Step indicators
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+              child: Row(
+                children: List.generate(
+                    3,
+                    (i) => Expanded(
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            height: 3,
+                            margin: EdgeInsets.only(right: i < 2 ? 6 : 0),
+                            decoration: BoxDecoration(
+                              color:
+                                  i <= _page ? c.primary : c.progressBg,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        )),
+              ),
+            ),
+
+            Expanded(
+              child: PageView(
+                controller: _pageController,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  _StepName(
+                    nameCtrl: _nameCtrl,
+                    emailCtrl: _emailCtrl,
+                    onChanged: () => setState(() {}),
+                  ),
+                  _StepMeds(
+                    meds: _meds,
+                    onChanged: () => setState(() {}),
+                  ),
+                  _StepNotifications(
+                    enabled: _notificationsOn,
+                    onChanged: (v) => setState(() => _notificationsOn = v),
+                  ),
+                ],
+              ),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+              child: PrimaryButton(
+                label: _page == 2 ? 'Start My Journey' : 'Continue',
+                onTap: _next,
+                enabled: _canNext,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Step 1: Name ──────────────────────────────────────────────────────────────
+class _StepName extends StatelessWidget {
+  final TextEditingController nameCtrl;
+  final TextEditingController emailCtrl;
+  final VoidCallback onChanged;
+
+  const _StepName(
+      {required this.nameCtrl,
+      required this.emailCtrl,
+      required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 40, 24, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Welcome to\nRestora',
+              style: TextStyle(
+                  fontFamily: 'Georgia',
+                  fontStyle: FontStyle.italic,
+                  fontSize: 44,
+                  color: c.textDark,
+                  height: 1.1)),
+          const SizedBox(height: 12),
+          Text('Your daily ritual begins with your name.',
+              style: TextStyle(
+                  fontFamily: 'Arial', fontSize: 15, color: c.textMid)),
+          const SizedBox(height: 40),
+          RestoraTextField(
+              label: 'Your name *',
+              controller: nameCtrl,
+              onChanged: onChanged),
+          const SizedBox(height: 14),
+          RestoraTextField(
+              label: 'Email (optional)',
+              controller: emailCtrl,
+              keyboard: TextInputType.emailAddress),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Step 2: Add Medications ───────────────────────────────────────────────────
+class _StepMeds extends StatefulWidget {
+  final List<Medication> meds;
+  final VoidCallback onChanged;
+
+  const _StepMeds({required this.meds, required this.onChanged});
+
+  @override
+  State<_StepMeds> createState() => _StepMedsState();
+}
+
+class _StepMedsState extends State<_StepMeds> {
+  Future<void> _add() async {
+    final med = await showModalBottomSheet<Medication>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const AddMedicationSheet(),
+    );
+    if (med != null) {
+      setState(() => widget.meds.add(med));
+      widget.onChanged();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 40, 24, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Your\nApothecary',
+              style: TextStyle(
+                  fontFamily: 'Georgia',
+                  fontStyle: FontStyle.italic,
+                  fontSize: 44,
+                  color: c.textDark,
+                  height: 1.1)),
+          const SizedBox(height: 12),
+          Text('Add at least one medication to track.',
+              style: TextStyle(
+                  fontFamily: 'Arial', fontSize: 15, color: c.textMid)),
+          const SizedBox(height: 24),
+          Expanded(
+            child: widget.meds.isEmpty
+                ? EmptyState(
+                    icon: Icons.medication_outlined,
+                    title: 'No medications yet',
+                    subtitle: 'Tap below to add your first one.',
+                    actionLabel: '+ Add Medication',
+                    onAction: _add,
+                  )
+                : ListView.separated(
+                    itemCount: widget.meds.length + 1,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (_, i) {
+                      if (i == widget.meds.length) {
+                        return TextButton.icon(
+                          onPressed: _add,
+                          icon: Icon(Icons.add, color: c.primary),
+                          label: Text('Add another',
+                              style: TextStyle(color: c.primary)),
+                        );
+                      }
+                      final med = widget.meds[i];
+                      return RestoraCard(
+                        padding: const EdgeInsets.all(14),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                  color: c.surface,
+                                  borderRadius: BorderRadius.circular(10)),
+                              child: Icon(medIcon(med.iconName),
+                                  color: c.primary, size: 18),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('${med.name} ${med.dosage}',
+                                      style: TextStyle(
+                                          fontFamily: 'Georgia',
+                                          fontSize: 15,
+                                          color: c.textDark)),
+                                  Text(med.period.label,
+                                      style: TextStyle(
+                                          fontFamily: 'Arial',
+                                          fontSize: 12,
+                                          color: c.textMid)),
+                                ],
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () {
+                                setState(
+                                    () => widget.meds.removeAt(i));
+                                widget.onChanged();
+                              },
+                              child: Icon(Icons.close,
+                                  color: c.textLight, size: 18),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Step 3: Notifications ─────────────────────────────────────────────────────
+class _StepNotifications extends StatelessWidget {
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  const _StepNotifications(
+      {required this.enabled, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 40, 24, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Stay on\nSchedule',
+              style: TextStyle(
+                  fontFamily: 'Georgia',
+                  fontStyle: FontStyle.italic,
+                  fontSize: 44,
+                  color: c.textDark,
+                  height: 1.1)),
+          const SizedBox(height: 12),
+          Text('Enable reminders so you never miss a dose.',
+              style: TextStyle(
+                  fontFamily: 'Arial', fontSize: 15, color: c.textMid)),
+          const SizedBox(height: 40),
+          RestoraCard(
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                      color: c.surface,
+                      borderRadius: BorderRadius.circular(12)),
+                  child: Icon(Icons.notifications_outlined,
+                      color: c.primary, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Daily Reminders',
+                          style: TextStyle(
+                              fontFamily: 'Arial',
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: c.textDark)),
+                      Text("We'll remind you when it's time",
+                          style: TextStyle(
+                              fontFamily: 'Arial',
+                              fontSize: 12,
+                              color: c.textMid)),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: enabled,
+                  onChanged: onChanged,
+                  activeTrackColor: c.primary,
+                  activeThumbColor: Colors.white,
+                  inactiveThumbColor: Colors.white,
+                  inactiveTrackColor: c.progressBg,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Center(
+            child: Text('You can change this any time in Settings.',
+                style: TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 12,
+                    color: c.textLight)),
+          ),
+        ],
+      ),
+    );
+  }
+}
